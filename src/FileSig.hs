@@ -84,16 +84,9 @@ slice from to xs = BS.take (to - from + 1) (BS.drop from xs)
 -- | Find the longest `FileType` `FileSignature` contained in the file
 -- specified by path (if any).
 signatureMatch :: String -> [FileType] -> IO (Maybe FileType)
-signatureMatch filePath sigsToMatch = do
-  let orderedSigsToMatch = sortBy sortBySigLength sigsToMatch
+signatureMatch filePath sigs = do
   contents <- BS.readFile filePath
-  pure $ find (findFunc contents) orderedSigsToMatch
-  where
-    findFunc contents ftype = hasSignature' contents ftype
-    sortBySigLength a b =
-      let sigA = fst $ fileSigConst a
-          sigB = fst $ fileSigConst b
-      in  sigA `compare` sigB
+  pure $ find (hasSignature' contents) $ sortOn (fst . fileSigConst) sigs
 
 -- | Test if a `ByteString` matches a supplied `FileType`'s `FileSignature`.
 hasSignature' :: BS.ByteString -> FileType -> Bool
