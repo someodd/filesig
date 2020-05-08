@@ -57,24 +57,25 @@ allFileTypes = [Script .. PNG]
 
 -- | Get the magic number/`FileSignature` for the supplied `FileType`.
 fileSigConst :: FileType -> FileSignature
-fileSigConst Script      = ("2321", 0)
-fileSigConst GIF89a      = ("474946383961", 0)
-fileSigConst Exe         = ("4D5A", 0)
-fileSigConst ZipNonEmpty = ("504B0304", 0)
-fileSigConst PDF         = ("255044462D", 0)
-fileSigConst Ogg         = ("4F676753", 0)
-fileSigConst RIFF        = ("52494646", 0)
-fileSigConst RIFFWAVE    = ("57415645", 0)
-fileSigConst MP3         = ("494433", 0)
-fileSigConst BMP         = ("424D", 0)
-fileSigConst FLAC        = ("664C6143", 0)
-fileSigConst MIDI        = ("4D546864", 0)
-fileSigConst RTF         = ("7B5C72746631", 0)
-fileSigConst XZ          = ("FD377A585A00", 0)
-fileSigConst SevenZip    = ("377ABCAF271C", 0)
-fileSigConst Doc         = ("D0CF11E0A1B11AE1", 0)
-fileSigConst JPEGJFIF    = ("FFD8FFE000104A4649460001", 0)
-fileSigConst PNG         = ("89504E470D0A1A0A", 0)
+fileSigConst fileType = case fileType of
+  Script      -> ("2321", 0)
+  GIF89a      -> ("474946383961", 0)
+  Exe         -> ("4D5A", 0)
+  ZipNonEmpty -> ("504B0304", 0)
+  PDF         -> ("255044462D", 0)
+  Ogg         -> ("4F676753", 0)
+  RIFF        -> ("52494646", 0)
+  RIFFWAVE    -> ("57415645", 0)
+  MP3         -> ("494433", 0)
+  BMP         -> ("424D", 0)
+  FLAC        -> ("664C6143", 0)
+  MIDI        -> ("4D546864", 0)
+  RTF         -> ("7B5C72746631", 0)
+  XZ          -> ("FD377A585A00", 0)
+  SevenZip    -> ("377ABCAF271C", 0)
+  Doc         -> ("D0CF11E0A1B11AE1", 0)
+  JPEGJFIF    -> ("FFD8FFE000104A4649460001", 0)
+  PNG         -> ("89504E470D0A1A0A", 0)
 
 -- | Slice a ByteString.
 slice :: Int -> Int -> BS.ByteString -> BS.ByteString
@@ -105,4 +106,4 @@ hasSignature' contents fileType =
 -- | Test if the file at the supplied path matches a supplied `FileType`'s `FileSignature`.
 hasSignature :: String -> FileType -> IO Bool
 hasSignature filePath fileType =
-  BS.readFile filePath >>= \x -> pure $ hasSignature' x fileType
+  (`hasSignature'` fileType) <$> BS.readFile filePath
