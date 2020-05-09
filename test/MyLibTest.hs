@@ -2,17 +2,19 @@
 -- will at least output to a log that gives accurate results.
 module Main (main) where
 
-import Test.HUnit
+import Test.Tasty
+import Test.Tasty.HUnit
 
 import FileSig
 
-testHasSignature = TestCase (do
+testHasSignature :: TestTree
+testHasSignature = testCase "hasSignature" $ do
   hasSignature "test/fixtures/script.sh" Script >>= \x -> assertBool "Failed Script" x
   hasSignature "test/fixtures/rtf.rtf" RTF >>= \x -> assertBool "Failed RTF" x
   hasSignature "test/fixtures/doc.doc" Doc >>= \x -> assertBool "Failed Doc" x
-  )
 
-testSignatureMatch = TestCase (do
+testSignatureMatch :: TestTree
+testSignatureMatch = testCase "signatureMatch" $ do
   let sigsToMatch = [ Script
                     , Doc
                     , FLAC
@@ -21,12 +23,8 @@ testSignatureMatch = TestCase (do
                     ]
   theMatch <- signatureMatch "test/fixtures/doc.doc" allFileTypes
   assertEqual "Failed signatureMatch" theMatch (Just Doc)
-  )
 
-tests = TestList
-  [ TestLabel "testHasSignature Tests" testHasSignature
-  , TestLabel "testSignatureMatch Tests" testSignatureMatch
-  ]
+tests :: TestTree
+tests = testGroup "Tests" [testHasSignature, testSignatureMatch]
 
-main :: IO ()
-main = runTestTT tests >> pure ()
+main = defaultMain tests
