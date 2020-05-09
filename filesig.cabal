@@ -90,5 +90,9 @@ test-suite filesig-test
   build-depends:       fslib, tasty-hunit, tasty
 
   -- Test fixtures
-  data-files:
-      test/fixtures/*
+  data-dir:
+      test/fixtures/
+
+  other-modules:
+    Paths_filesig
+

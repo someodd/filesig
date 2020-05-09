@@ -13,6 +13,10 @@ Just MIDI
 >>> signatureMatch "path/to/file.doc" [PDF, Exe, FLAC]
 Nothing
 
->>> hasSignature "path/to/file.zip" ZipNonEmpty
+>>> "path/to/file.zip" `hasSignature` ZipNonEmpty
 True
 ```
+
+## Running tests
+
+`cabal test`
