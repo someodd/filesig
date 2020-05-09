@@ -86,7 +86,9 @@ test-suite filesig-test
   -- The entrypoint to the test suite.
   main-is:             MyLibTest.hs
 
-  -- should import common
-
   -- Test dependencies.
-  build-depends:       fslib, HUnit
+  build-depends:       fslib, tasty-hunit, tasty
+
+  -- Test fixtures
+  data-files:
+      test/fixtures/*
