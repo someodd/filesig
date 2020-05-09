@@ -5,13 +5,19 @@ module Main (main) where
 import Test.Tasty
 import Test.Tasty.HUnit
 
+import Paths_filesig
 import FileSig
 
 testHasSignature :: TestTree
 testHasSignature = testCase "hasSignature" $ do
-  hasSignature "test/fixtures/script.sh" Script >>= \x -> assertBool "Failed Script" x
-  hasSignature "test/fixtures/rtf.rtf" RTF >>= \x -> assertBool "Failed RTF" x
-  hasSignature "test/fixtures/doc.doc" Doc >>= \x -> assertBool "Failed Doc" x
+  scriptPath <- getDataFileName "test/fixtures/script.sh"
+  scriptPath `hasSignature` Script >>= \x -> assertBool "Failed Script" x
+
+  rtfPath <- getDataFileName "test/fixtures/rtf.rtf"
+  rtfPath `hasSignature` RTF >>= \x -> assertBool "Failed RTF" x
+
+  docPath <- getDataFileName "test/fixtures/doc.doc"
+  docPath `hasSignature` Doc >>= \x -> assertBool "Failed Doc" x
 
 testSignatureMatch :: TestTree
 testSignatureMatch = testCase "signatureMatch" $ do
@@ -21,7 +27,8 @@ testSignatureMatch = testCase "signatureMatch" $ do
                     , SevenZip
                     , JPEGJFIF
                     ]
-  theMatch <- signatureMatch "test/fixtures/doc.doc" allFileTypes
+  docPath <- getDataFileName "test/fixtures/doc.doc"
+  theMatch <- signatureMatch docPath allFileTypes
   assertEqual "Failed signatureMatch" theMatch (Just Doc)
 
 tests :: TestTree
