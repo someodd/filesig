@@ -1,102 +1,98 @@
+{-# LANGUAGE OverloadedStrings #-}
 -- | Discern a file's type using hex-encoded file signatures.
 --
 -- Useful: https://en.wikipedia.org/wiki/List_of_file_signatures
-module FileSig
-    ( hasSignature
-    , signatureMatch
-    , FileType(..)
-    , allFileTypes
-    ) where
 
+module FileSig
+  ( hasSignature
+  , signatureMatch
+  , getAllExtensions
+  , decodedJSON
+  )  where
+
+import Paths_filesig
+import Data.Vector as V
+import Data.Maybe
+import Data.Functor
+import Data.Traversable
+import Control.Monad
+import Data.Text as T
+import Data.HashMap.Strict as HM
+import Data.Aeson
+import Data.Aeson.Types
 import Control.Monad.IO.Class
-import Data.List
+import Data.List                            as L
 import Data.Ord
 import qualified Data.Hex                   as H
 import qualified Data.ByteString            as BS
 import qualified Data.ByteString.Char8      as B8
+import qualified Data.ByteString.Lazy as B
 
--- | The hex code (a `String` without spaces) and offset where
--- the magic number/file signature is located, identifying the
--- `FileType`.
-type FileSignature = (String, Int)
+type Signature = (String, Int)
 
--- | The various file types/formats which can be detected.
-data FileType
-  = Script
-  -- ^ Like a Bash script
-  | GIF89a
-  | Exe--TODO: rename; also DLLs have this
-  | ZipNonEmpty--TODO: doublecheck
-  -- ^ A zip file which actually contains something...
-  | PDF
-  | Ogg
-  | RIFF
-  -- ^ Resource Interchange File Format.
-  | RIFFWAVE
-  -- ^ Waveform Audio File Format (.wav).
-  | MP3
-  | BMP
-  | FLAC
-  | MIDI
-  | RTF
-  -- ^ Rich Text Format
-  | XZ
-  -- ^ XZ compression utility using LZMA2 compression .
-  | SevenZip
-  -- ^ 7z archive.
-  | Doc
-  -- ^ Compound File Binary Format; used by older Microsoft Office documents
-  -- like doc, xls, and ppt.
-  | JPEGJFIF
-  -- ^ JPEG File Interchange Format
-  | PNG
-  deriving (Show, Enum, Eq)
+magicFileJSON :: FilePath
+magicFileJSON = "data/magic.json"
 
--- | Contains all the `FileType`s.
-allFileTypes = [Script .. PNG]
+getJSON :: IO B.ByteString
+getJSON = do
+  docPath <- getDataFileName magicFileJSON
+  B.readFile docPath
 
--- | Get the magic number/`FileSignature` for the supplied `FileType`.
-fileSigConst :: FileType -> FileSignature
-fileSigConst fileType = case fileType of
-  Script      -> ("2321", 0)
-  GIF89a      -> ("474946383961", 0)
-  Exe         -> ("4D5A", 0)
-  ZipNonEmpty -> ("504B0304", 0)
-  PDF         -> ("255044462D", 0)
-  Ogg         -> ("4F676753", 0)
-  RIFF        -> ("52494646", 0)
-  RIFFWAVE    -> ("57415645", 0)
-  MP3         -> ("494433", 0)
-  BMP         -> ("424D", 0)
-  FLAC        -> ("664C6143", 0)
-  MIDI        -> ("4D546864", 0)
-  RTF         -> ("7B5C72746631", 0)
-  XZ          -> ("FD377A585A00", 0)
-  SevenZip    -> ("377ABCAF271C", 0)
-  Doc         -> ("D0CF11E0A1B11AE1", 0)
-  JPEGJFIF    -> ("FFD8FFE000104A4649460001", 0)
-  PNG         -> ("89504E470D0A1A0A", 0)
+decodedJSON = do
+  theJSON <- getJSON
+  let (Right daJSON) = eitherDecode' theJSON :: Either String (HM.HashMap Text Value)
+  pure daJSON
 
 -- | Slice a ByteString.
-slice :: Int -> Int -> BS.ByteString -> BS.ByteString
-slice from to xs = BS.take (to - from + 1) (BS.drop from xs)
+byteSlice :: Int -> Int -> BS.ByteString -> BS.ByteString
+byteSlice from to xs = BS.take (to - from + 1) (BS.drop from xs)
 
+getSignatures :: Value -> [Signature]
+getSignatures (Object fileTypeMap) =
+  let signs = HM.lookup (pack "signs") fileTypeMap-- FIXME:fromjust
+      unparsedSignatures = case signs of
+        (Just signatures) -> listOfText signatures
+        Nothing           -> error "Malformed magic JSON: entry without signs entry." -- TODO: could tell key
+  in  L.map parseSig (unparsedSignatures)
+  where
+    listOfText (Array a) =
+      let blah (String x) = x
+          aList = V.toList a
+      in  L.map blah aList
+
+    parseSig :: Text -> (String, Int)
+    parseSig sign =
+      let [offset, hex] = T.splitOn "," sign
+      in  (T.unpack hex, read (T.unpack offset) :: Int)
+getSignatures _ = mzero
+
+-- | Is the contents the file type defined (by the supplied extension)? Nothing
+-- if the file extension supplied doesn't exist in the `HashMap`.
+hasSignature' :: HM.HashMap Text Value -> BS.ByteString -> Text -> Maybe Bool
+hasSignature' magicMap contents fileExtension =
+  let extEntry = HM.lookup fileExtension magicMap
+  in  case extEntry of
+    (Just signatures) -> Just $ L.or $ L.map checkOneSig (getSignatures $ signatures)
+    Nothing           -> Nothing 
+  where
+    checkOneSig sig =
+      let (expectedSig, offset) = sig
+          expectedSigBS = B8.pack expectedSig
+          potentialSig = byteSlice offset (offset + (BS.length expectedSigBS `div` 2) - 1) contents
+      in  H.hex potentialSig == expectedSigBS
+
+hasSignature :: HM.HashMap Text Value -> Text -> Text -> IO (Maybe Bool)
+hasSignature magicMap filePath fileExtension = do
+  daFile <- BS.readFile (T.unpack filePath)
+  pure $ hasSignature' magicMap daFile fileExtension
+
+getAllExtensions :: HM.HashMap Text Value -> [Text]
+getAllExtensions magicMap = HM.keys magicMap
+
+-- FIXME: pass optional list of exts?
 -- | Find the longest `FileType` `FileSignature` contained in the file
 -- specified by path (if any).
-signatureMatch :: String -> [FileType] -> IO (Maybe FileType)
-signatureMatch filePath sigs = do
-  contents <- BS.readFile filePath
-  pure $ find (hasSignature' contents) $ sortOn (fst . fileSigConst) sigs
-
--- | Test if a `ByteString` matches a supplied `FileType`'s `FileSignature`.
-hasSignature' :: BS.ByteString -> FileType -> Bool
-hasSignature' contents fileType =
-  let (expectedSig, offset) = fileSigConst fileType
-      expectedSigBS = B8.pack expectedSig
-      potentialSig = slice offset (offset + (BS.length expectedSigBS `div` 2) - 1) contents
-  in  H.hex potentialSig == expectedSigBS
-
--- | Test if the file at the supplied path matches a supplied `FileType`'s `FileSignature`.
-hasSignature :: String -> FileType -> IO Bool
-hasSignature filePath fileType =
-  (`hasSignature'` fileType) <$> BS.readFile filePath
+signatureMatch magicMap filePath = do
+  contents <- BS.readFile (T.unpack filePath)
+  -- FIXME/TODO: sort by the longest signature
+  pure $ L.find (\x -> fromMaybe False (hasSignature' magicMap contents x)) (getAllExtensions magicMap)

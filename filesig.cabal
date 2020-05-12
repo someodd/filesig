@@ -18,13 +18,17 @@ version:             0.1.0.0
 synopsis:            Discern a file's type by its file signature/magic number.
 
 -- A longer description of the package.
--- description:
+description:
+  Pure Haskell library to determine a file's type without relying on its
+  name/extension (by using its file signature (AKA "magic number").  It does not
+  rely on file extensions at all.  For a full list of file types supported
+  (>=150!) in the database, please see `data/magic.json`.
 
 -- URL for the project homepage or repository.
 homepage:            https://github.com/hyperreal-gopher/filesig
 
 -- A URL where users can report bugs.
--- bug-reports:
+bug-reports:         https://github.com/hyperreal-gopher/filesig/issues
 
 -- The license under which the package is released.
 license:             GPL-3.0-only
@@ -51,18 +55,27 @@ extra-source-files:
     README.md,
     test/fixtures/doc.doc,
     test/fixtures/rtf.rtf,
-    test/fixtures/script.sh
+    data/magic.json
 
 common shared-properties
   -- Base language which the package is written in.
   default-language:    Haskell2010
 
+  other-modules:
+    Paths_filesig
+
+  autogen-modules:
+    Paths_filesig
+
   -- Other library packages from which modules are imported.
-  -- build-depends:       base ^>=4.12.0.0, bytestring ^>=0.10.8.2, hex==0.1.2
   build-depends:
-    base        >= 4.12.0 && < 4.13,
-    bytestring  >= 0.10.8 && < 0.11,
-    hex         >= 0.1.2 && < 0.2
+    base                  >= 4.12.0 && < 4.13,
+    bytestring            >= 0.10.8 && < 0.11,
+    hex                   >= 0.1.2 && < 0.2,
+    aeson                 >= 1.4.7 && < 1.5,
+    text                  >= 1.2.3 && < 1.3,
+    unordered-containers  >= 0.2.10 && < 0.3,
+    vector                >= 0.12.1 && < 0.13,
 
 library fslib
   import: shared-properties
@@ -93,7 +106,4 @@ test-suite filesig-test
 
   -- Test dependencies.
   build-depends:       fslib, tasty-hunit, tasty
-
-  other-modules:
-    Paths_filesig
 
