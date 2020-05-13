@@ -31,7 +31,7 @@ testSignatureMatch = testCase "signatureMatch" $ do
 
   rtfPath <- getDataFileName "test/fixtures/rtf.rtf"
   match <- signatureMatch magic rtfPath
-  assertEqual "Failed signatureMatch (rtf)" (Just "rtf") match
+  assertEqual "Failed signatureMatch (rtf)" ["rtf"] match
 
 testCount :: TestTree
 testCount = testCase "Count JSON entries" $ do

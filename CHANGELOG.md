@@ -1,5 +1,22 @@
 # Revision history for filesig
 
+## v0.1.0.0-rc.3 -- 2020-05-13
+
+### Added
+
+* Standlone executable for using filesig as a CLI app
+* Pretty printing function for match results
+
+### Changed
+
+* JSON magic database now gets embedded with file-embed library
+* `signatureMatch` now returns a list of all signatures matched
+
+### Fixed
+
+* An error in the ZIP entry in the magic database (comma shouldn't have been in
+  the offset!)
+
 ## v0.1.0.0-rc.2 -- 2020-05-13
 
 ### Added

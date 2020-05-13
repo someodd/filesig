@@ -1,3 +1,4 @@
+{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE OverloadedStrings #-}
 -- | Discern a file's type using hex-encoded file signatures.
 --
@@ -8,8 +9,11 @@ module FileSig
   , signatureMatch
   , getAllExtensions
   , decodedJSON
+  , prettyMatchPrint
   )  where
 
+import Data.Foldable
+import Data.FileEmbed
 import Paths_filesig
 import Data.Vector as V
 import Data.Maybe
@@ -68,17 +72,13 @@ parseSignatures someTexts@(Array _) = L.map parseSig (listOfText someTexts)
       in  (T.unpack hex, read (T.unpack offset) :: Int)
 parseSignatures _ = mzero
 
-magicFileJSON :: FilePath
-magicFileJSON = "data/magic.json"
-
-getJSON :: IO B.ByteString
+getJSON :: B.ByteString
 getJSON = do
-  docPath <- getDataFileName magicFileJSON
-  B.readFile docPath
+  B.fromStrict $(embedFile "data/magic.json")
 
+decodedJSON :: IO MagicMap
 decodedJSON = do
-  theJSON <- getJSON
-  let (Right daJSON) = eitherDecode' theJSON :: Either String MagicMap
+  let (Right daJSON) = eitherDecode' getJSON :: Either String MagicMap
   pure daJSON
 
 -- | Slice a ByteString.
@@ -110,9 +110,23 @@ hasSignature magicMap filePath fileExtension = do
 getAllExtensions :: MagicMap -> [Text]
 getAllExtensions magicMap = HM.keys magicMap
 
+-- FIXME: collect all that match and then reutrn the longest one?
 -- | Check if the supplied `FilePath` matches any of the file formats in the magic database.
-signatureMatch :: HM.HashMap Text FileFormat -> FilePath -> IO (Maybe Text)
+signatureMatch :: HM.HashMap Text FileFormat -> FilePath -> IO [ExtensionKey]
 signatureMatch magicMap filePath = do
   contents <- BS.readFile filePath
   -- FIXME/TODO: sort by the longest signature
-  pure $ L.find (\x -> fromMaybe False (hasSignature' magicMap contents x)) (getAllExtensions magicMap)
+  pure $ L.filter (\x -> fromMaybe False (hasSignature' magicMap contents x)) (getAllExtensions magicMap)
+
+prettyMatchPrint :: MagicMap -> [ExtensionKey] -> IO ()
+prettyMatchPrint magicMap exts = traverse_ prettyOneMatch exts
+  where
+  prettyOneMatch ext =
+    let entry = HM.lookup ext magicMap
+    in  case entry of
+      (Just fileFormat) ->
+        let typicalExt = "Typical Extension: ." L.++ (T.unpack ext)
+            mediaType  = "MIME/Media Type:   " L.++ (T.unpack $ mime fileFormat)
+            signatures = "Signatures:        " L.++ (show $ magicBytes fileFormat)
+        in  putStrLn $ typicalExt L.++ "\n" L.++ mediaType L.++ "\n" L.++ signatures L.++ "\n"
+      Nothing  -> error "This shouldn't be possible!"
