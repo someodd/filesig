@@ -17,11 +17,11 @@ testHasSignature = testCase "hasSignature" $ do
   magic <- decodedJSON
 
   scriptPath <- getDataFileName "test/fixtures/rtf.rtf"
-  scriptBool <- hasSignature (magic) (T.pack scriptPath) "rtf"
+  scriptBool <- hasSignature (magic) scriptPath "rtf"
   assertBool "Failed RTF" (isJust scriptBool && fromJust scriptBool)
 
   docPath <- getDataFileName "test/fixtures/doc.doc"
-  docBool <- hasSignature (magic) (T.pack docPath) "doc"
+  docBool <- hasSignature (magic) docPath "doc"
   assertBool "Failed doc" (isJust docBool && fromJust docBool)
 
 
@@ -30,13 +30,13 @@ testSignatureMatch = testCase "signatureMatch" $ do
   magic <- decodedJSON
 
   rtfPath <- getDataFileName "test/fixtures/rtf.rtf"
-  match <- signatureMatch magic (T.pack rtfPath)
-  assertEqual "Failed signatureMatch (rtf)" match (Just "rtf")
+  match <- signatureMatch magic rtfPath
+  assertEqual "Failed signatureMatch (rtf)" (Just "rtf") match
 
 testCount :: TestTree
 testCount = testCase "Count JSON entries" $ do
   magic <- decodedJSON
-  assertEqual "Count entries" (length $ getAllExtensions magic) 150
+  assertEqual "Count entries" 150 (length $ getAllExtensions magic)
 
 tests :: TestTree
 tests = testGroup "Tests" [testHasSignature, testSignatureMatch, testCount]
