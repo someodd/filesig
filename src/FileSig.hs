@@ -7,8 +7,9 @@
 module FileSig
   ( hasSignature
   , signatureMatch
-  , getAllExtensions
-  , decodedJSON
+  , MagicMap
+  , magicMap
+  , allExtensions
   , prettyMatchPrint
   )  where
 
@@ -34,11 +35,14 @@ type Signature = (Int, ByteString)
 -- | The extension of a file format, which acts as a key in the magic database.
 type ExtensionKey = Text
 
+-- | The MIME type/media type
+type MIME = Text
+
 -- | File format located by a file extension (as key) in the magic number database (JSON).
 data FileFormat = FileFormat {
   magicBytes :: [Signature],
   -- ^ The magic numbers/file signatures which can be used to identify this file format.
-  mime :: Text
+  mime :: MIME
   -- ^ the MIME type/media type of this file format.
 } deriving (Show)
 
@@ -54,53 +58,82 @@ magicMap :: MagicMap
 magicMap =
     HM.map go rawMagicMap
   where
-    go (sigs, mime) = (decodeBase16Lenient <$> sigs, mime)
+    go :: ([Signature], Text) -> FileFormat
+    go (sigs, mime) = FileFormat (fmap decodeBase16Lenient <$> sigs) mime
 
 -- | All extensions in the 'magicMap'
 allExtensions :: [ExtensionKey]
-allExtensions = HM.keys magicMap
+allExtensions = L.sort $ HM.keys magicMap
 
-longestSignature :: ByteString
-longestSignature = maximumBy (compare `on` BS.length) allSigs
+-- This is going to be '(36865, "4344303031")' from the 'iso' signature
+-- but if the magicMap is ever updated, this will consistently give the
+-- biggest starting chunk we might need to guess extentions, so as to not
+-- load in potential GBs of data into memory.
+longestSignature :: Int
+longestSignature = longestChunk allSigs
   where
-    allSigs = concatMap (fmap snd . fst) $ HM.elems magicMap
+    allSigs = concatMap magicBytes $ HM.elems magicMap
+
+sigLength :: Signature -> Int
+sigLength (i, bs) = i + BS.length bs
+
+getLongestSignature :: ExtensionKey -> Maybe Int
+getLongestSignature ext =
+    longestChunk . magicBytes <$> mFileExt
+  where
+    mFileExt = HM.lookup ext magicMap
+
+longestChunk :: [Signature] -> Int
+longestChunk [] = 0
+longestChunk sigs = maximum $ sigLength <$> sigs
 
 -- | Is the contents the file type defined (by the supplied extension)? Nothing
 -- if the file extension supplied doesn't exist in the `HashMap`.
-hasSignature' :: Text -> BS.ByteString -> Bool
-hasSignature' fileExtension contents =
+hasSignature' :: ExtensionKey -> BSL.ByteString -> Bool
+hasSignature' ext contents =
     -- If the ext doesn't exist, we can't verify it,
     -- so we default to 'False'.
-    maybe False (anyValidSig . magicBytes) mFileExt
+    maybe False anyValidSig $ HM.lookup ext magicMap
   where
-    anyValidSig = or . fmap checkOneSig
-    mFileExt = HM.lookup fileExtension magicMap
+    anyValidSig :: FileFormat -> Bool
+    anyValidSig = or . fmap checkOneSig . magicBytes
+    checkOneSig :: Signature -> Bool
     checkOneSig (offset, expectedSig) =
-      let potentialSig = BS.take (BS.length expectedSig) $ BS.drop offset contents
-      in  potentialSig == expectedSig
+      let lazyExpectedSig = BSL.fromStrict expectedSig
+          len = BSL.length lazyExpectedSig
+          potentialSig = BSL.take len $ BSL.drop (fromIntegral offset) contents
+      in potentialSig == lazyExpectedSig
 
 -- | Check if the file at the suppiled `FilePath` matches a file format from the database.
 -- `Nothing` if no such format (specified by extension) exists in the database.
-hasSignature :: Text -> FilePath -> IO Bool
-hasSignature fileExtension =
-    fmap (hasSignature' fileExtension) . efficientRead
-  where
-    -- TODO: This should use something that
-    -- doesn't read the entire file into memory
-    efficientRead = BS.readFile
+hasSignature :: ExtensionKey -> FilePath -> IO Bool
+hasSignature ext filePath =
+    case ext `HM.lookup` magicMap of
+      Nothing -> return False
+      Just (FileFormat sigs _) ->
+        -- Doing this before checking makes sure we only read in the
+        -- minimum amount of bytes needed to check for this extension.
+        let maxExtBytes = longestChunk sigs
+        in hasSignature' ext <$> getFirstNBytes filePath maxExtBytes
 
-{-
-getAllExtensions :: MagicMap -> [Text]
-getAllExtensions magicMap = HM.keys magicMap
--}
+-- | Gets suffix of the file at 'FilePath' with the given amount of bytes,
+-- or less if the file is smaller.
+getFirstNBytes :: FilePath -> Int -> IO BSL.ByteString
+getFirstNBytes fp = withBinaryFile fp ReadMode . flip BSL.hGet
 
--- FIXME: collect all that match and then reutrn the longest one?
+
+-- Some optimizations possible with 'signatureMatch':
+-- * Pass length of 'contents' to hasSignature', so it can dismiss some ext flat-out
+-- * Do longest checks first, so the 'contents' can be shortened and
+--   memory can be freed up for the following checks.
+
+-- FIXME: collect all that match and then return the longest one?
 -- | Check if the supplied `FilePath` matches any of the file formats in the magic database.
 signatureMatch :: FilePath -> IO [ExtensionKey]
 signatureMatch filePath = do
-  contents <- BS.readFile filePath
+  contents <- getFirstNBytes filePath longestSignature
   -- FIXME/TODO: sort by the longest signature
-  pure $ filter (flip hasSignature' contents) allExtensions
+  pure $ Prelude.filter (flip hasSignature' contents) allExtensions
 
 prettyMatchPrint :: [ExtensionKey] -> IO ()
 prettyMatchPrint = mapM_ prettyOneMatch
