@@ -1,5 +1,7 @@
+{-# LANGUAGE OverloadedStrings #-}
 module Magic where
 
+import Data.ByteString (ByteString)
 import Data.HashMap.Strict as HM
 import Data.Text (Text)
 
@@ -418,8 +420,8 @@ rawMagicMap = HM.fromList [
     )
   , ("zip",
         ( [ (0, "504B0304")
-          , (0, "504B0304")
-          , (0, "504B030414000100630000000000")
+          -- Will already match because '504B0304' matches
+          -- , (0, "504B030414000100630000000000")
           , (0, "504B0708")
           , (30, "504B4C495445")
           , (526, "504B537058")
@@ -505,25 +507,17 @@ rawMagicMap = HM.fromList [
         )
     )
   , ("jpg",
-        ( [ (0, "FFD8")
-          , (0, "FFD8")
-          , (0, "FFD8")
-          , (0, "FFD8")
-          ]
+        ( [ (0, "FFD8") ]
         , "image/jpeg"
         )
     )
   , ("jpeg",
-        ( [ (0, "FFD8")
-          , (0, "FFD8")
-          ]
+        ( [ (0, "FFD8") ]
         , "image/jpeg"
         )
     )
   , ("jpe",
-        ( [ (0, "FFD8")
-          , (0, "FFD8")
-          ]
+        ( [ (0, "FFD8") ]
         , "image/jpeg"
         )
     )
@@ -696,7 +690,7 @@ rawMagicMap = HM.fromList [
         )
     )
   , ("mov",
-        ( [ (0, "00")
+        ( [ (0, "00") -- I get the feeling this would match WAY too many files... any file that starts with 0?
           , (0, "000000146674797071742020")
           , (4, "6674797071742020")
           , (4, "6D6F6F76")
@@ -712,9 +706,7 @@ rawMagicMap = HM.fromList [
         )
     )
   , ("sxc",
-        ( [ (0, "504B0304")
-          , (0, "504B0304")
-          ]
+        ( [ (0, "504B0304") ]
         , "application/vnd.sun.xml.calc"
         )
     )
@@ -756,7 +748,8 @@ rawMagicMap = HM.fromList [
   , ("jar",
         ( [ (0, "4A4152435300")
           , (0, "504B0304")
-          , (0, "504B0304140008000800")
+          -- Unneccessary, since '504B0304' would match it too
+          -- , (0, "504B0304140008000800")
           , (0, "5F27A889")
           ]
         , "application/x-java-archive"
