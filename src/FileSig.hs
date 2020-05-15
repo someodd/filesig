@@ -12,18 +12,20 @@ module FileSig
   , prettyMatchPrint
   )  where
 
--- import Control.Monad.IO.Class
--- import Data.Aeson
--- import Data.Aeson.Types
--- import Data.FileEmbed
--- import qualified Data.ByteString.Lazy as B
--- import Data.Vector as V
 import Paths_filesig
-import qualified Data.ByteString            as BS
+import Data.ByteString (ByteString)
+import qualified Data.ByteString as BS
+import qualified Data.ByteString.Lazy as BSL
 import Data.ByteString.Base16 (decodeBase16Lenient)
 import Data.HashMap.Strict as HM
+import Data.List as L (sort)
 import Data.Ord (Down(..))
-import Data.Text as T
+import Data.Text as T (Text, pack, unlines, unpack)
+import System.IO (IOMode(..), hClose, withBinaryFile)
+
+
+import Magic
+
 
 -- | Magic bytes/file signature, in the form of the offset (`Int`), followed
 -- by the bytes (`ByteString`).
@@ -43,37 +45,6 @@ data FileFormat = FileFormat {
 -- | The abstraction of the JSON magic database containing all the file signatures.
 -- The key is the file extension.
 type MagicMap = HM.HashMap ExtensionKey FileFormat
-{-
--- | JSON parser for a file format entries in the magic database.
-instance FromJSON FileFormat where
-  parseJSON = withObject "FileFormat" $ \o ->
-    FileFormat <$> fmap parseSignatures (o .: "signs")
-            <*> o .: "mime"
-
--- | Parse the JSON "signs" entry from the magic database.
-parseSignatures :: Value -> [Signature]
-parseSignatures someTexts@(Array _) = L.map parseSig (listOfText someTexts)
-  where
-    listOfText (Array a) =
-      let blah (String x) = x
-          aList = V.toList a
-      in  L.map blah aList
-
-    parseSig :: Text -> Signature
-    parseSig sign =
-      let [offset, hex] = T.splitOn "," sign
-      in  (T.unpack hex, read (T.unpack offset) :: Int)
-parseSignatures _ = mzero
-
-getJSON :: B.ByteString
-getJSON = do
-  B.fromStrict $(embedFile "data/magic.json")
-
-decodedJSON :: IO MagicMap
-decodedJSON = do
-  let (Right daJSON) = eitherDecode' getJSON :: Either String MagicMap
-  pure daJSON
--}
 
 -- | This is the entire MagicMap to be used everywhere, no IO required.
 --
@@ -85,6 +56,7 @@ magicMap =
   where
     go (sigs, mime) = (decodeBase16Lenient <$> sigs, mime)
 
+-- | All extensions in the 'magicMap'
 allExtensions :: [ExtensionKey]
 allExtensions = HM.keys magicMap
 
@@ -131,14 +103,14 @@ signatureMatch filePath = do
   pure $ filter (flip hasSignature' contents) allExtensions
 
 prettyMatchPrint :: [ExtensionKey] -> IO ()
-prettyMatchPrint = traverse_ prettyOneMatch
+prettyMatchPrint = mapM_ prettyOneMatch
   where
+    putTextLn = putStrLn . T.unpack
     prettyOneMatch ext =
       case HM.lookup ext magicMap of
         Just (FileFormat sigs mime) ->
           let typicalExt = "Typical Extension: ." <> ext
               mediaType  = "MIME/Media Type:   " <> mime
               signatures = "Signatures:        " <> T.pack (show sigs)
-              putTextLn = putStrLn . T.unpack
-          in  putTextLn $ T.unlines [typicalExt, mediaType, signatures] <> "\n"
+          in putTextLn $ T.unlines [typicalExt, mediaType, signatures] <> "\n"
         Nothing -> putTextLn $ "No support for this extension: ." <> ext
