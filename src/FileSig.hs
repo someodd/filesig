@@ -116,11 +116,10 @@ hasSignature ext filePath =
         let maxExtBytes = longestChunk sigs
         in hasSignature' ext <$> getFirstNBytes filePath maxExtBytes
 
--- | Gets suffix of the file at 'FilePath' with the given amount of bytes,
--- or less if the file is smaller.
+-- | Get the first n bytes of the file at `FilePath`, possibly less if
+-- the file is smaller than n.
 getFirstNBytes :: FilePath -> Int -> IO BSL.ByteString
 getFirstNBytes fp = withBinaryFile fp ReadMode . flip BSL.hGet
-
 
 -- Some optimizations possible with 'signatureMatch':
 -- * Pass length of 'contents' to hasSignature', so it can dismiss some ext flat-out
