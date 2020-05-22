@@ -19,17 +19,14 @@ it doesn't use the extension to check, the extension is merely used to specify t
 file type magic number to use.
 
 ```haskell
->>> magic <- decodedJSON
->>> scriptBool <- hasSignature (magic) "foo/myrichtext" "rtf"
->> isJust scriptBool && fromJust scriptBool
+>>> hasSignature "foo/myrichtext" "rtf"
 True
 ```
 
 To check if, wand which, file type a file matches in the database:
 
 ```haskell
->>> magic <- decodedJSON
->>> wow <- signatureMatch magic "foo/bar/story"
+>>> signatureMatch "foo/bar/story"
 Just "doc"
 ```
 

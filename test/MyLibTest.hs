@@ -3,42 +3,49 @@
 -- will at least output to a log that gives accurate results.
 module Main (main) where
 
-import Data.Maybe
-import qualified Data.Text as T
-
+import System.Directory (getCurrentDirectory)
 import Test.Tasty
 import Test.Tasty.HUnit
 
 import Paths_filesig
 import FileSig
 
+
+main :: IO ()
+main = defaultMain tests
+
+tests :: TestTree
+tests = testGroup "Tests"
+  [ testHasSignature
+  , testSignatureMatch
+  , testCount
+  ]
+
+getFixturesPath :: IO FilePath
+getFixturesPath = (++ "/test/fixtures") <$> getCurrentDirectory
+
 testHasSignature :: TestTree
 testHasSignature = testCase "hasSignature" $ do
-  magic <- decodedJSON
 
-  scriptPath <- getDataFileName "test/fixtures/rtf.rtf"
-  scriptBool <- hasSignature (magic) scriptPath "rtf"
-  assertBool "Failed RTF" (isJust scriptBool && fromJust scriptBool)
+  path <- getFixturesPath
+  -- scriptPath <- getDataFileName "test/fixtures/rtf.rtf"
 
-  docPath <- getDataFileName "test/fixtures/doc.doc"
-  docBool <- hasSignature (magic) docPath "doc"
-  assertBool "Failed doc" (isJust docBool && fromJust docBool)
+  scriptBool <- hasSignature "rtf" $ path ++ "/rtf.rtf"
+  assertBool "Failed RTF" scriptBool
+
+  -- docPath <- getDataFileName "test/fixtures/doc.doc"
+  docBool <- hasSignature "doc" $ path ++ "/doc.doc"
+  assertBool "Failed doc" docBool
 
 
 testSignatureMatch :: TestTree
 testSignatureMatch = testCase "signatureMatch" $ do
-  magic <- decodedJSON
 
-  rtfPath <- getDataFileName "test/fixtures/rtf.rtf"
-  match <- signatureMatch magic rtfPath
+  path <- getFixturesPath
+  -- rtfPath <- getDataFileName "test/fixtures/rtf.rtf"
+  match <- signatureMatch $ path ++ "/rtf.rtf"
   assertEqual "Failed signatureMatch (rtf)" ["rtf"] match
 
 testCount :: TestTree
-testCount = testCase "Count JSON entries" $ do
-  magic <- decodedJSON
-  assertEqual "Count entries" 150 (length $ getAllExtensions magic)
-
-tests :: TestTree
-tests = testGroup "Tests" [testHasSignature, testSignatureMatch, testCount]
-
-main = defaultMain tests
+testCount = testCase "Count extension entries" $
+  assertEqual "Count entries" 150 (length allExtensions)
